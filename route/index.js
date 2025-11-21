@@ -2,7 +2,7 @@
 
 const express = require('express');
 const RegisterUser = require('../controller/RegisterUser');
-const CheckEmail = require('../controller/checkEmail');
+const CheckEmail = require('../controller/CheckEmail');
 const CheckPassword = require('../controller/CheckPassword');
 const UserDetails = require('../controller/UserDetails');
 const LogOut = require('../controller/LogOut');
