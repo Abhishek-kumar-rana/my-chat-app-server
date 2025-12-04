@@ -24,7 +24,7 @@ async function RegisterUser(request,response){
             name,
             email,
             profile_pic,
-            password : hashpassword
+            password : hashpassword 
         }
 
         const user = new UserModel(payload)

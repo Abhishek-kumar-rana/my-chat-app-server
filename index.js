@@ -10,10 +10,11 @@ const { app,server } = require('./socket');
 dotenv.config();
 
 // const app = express();  
-app .use(cors({
-    origin: process.env.FRONTEND_URL || '',
+app.use(cors({
+    origin: "*",
     credentials: true,         
-}));     
+})); 
+    
 app.use(express.json());
 app.use(cookieParser());   
  

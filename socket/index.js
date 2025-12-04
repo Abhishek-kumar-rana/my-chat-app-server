@@ -13,7 +13,7 @@ const app = express()
 const server = http.createServer(app)
 const io = new Server(server,{
     cors : {
-         origin: process.env.FRONTEND_URL || "",
+         origin: "*",
     credentials: true,   
     }
 })   
@@ -69,6 +69,7 @@ io.on('connection',async(socket)=>{
     socket.on('new message',async(data)=>{
 
         //check conversation is available both user
+         
 
         let conversation = await ConversationModel.findOne({
             "$or" : [
@@ -116,7 +117,55 @@ io.on('connection',async(socket)=>{
         io.to(data?.sender).emit('conversation',conversationSender)
         io.to(data?.receiver).emit('conversation',conversationReceiver)
     })
- 
+
+    // delerte message
+    // delete message
+socket.on("delete-message", async ({ messageId }) => {
+  try {
+    if (!messageId || !user?._id) return;
+
+    console.log("Delete message request:", messageId, "by user", user._id);
+
+    // 1️⃣ Find the message
+    const msg = await MessageModel.findById(messageId);
+    if (!msg) {
+      console.log("Message not found");
+      return;
+    }
+
+    // 2️⃣ Allow only the sender to delete
+    if (msg.msgByUserId.toString() !== user._id.toString()) {
+      console.log("Not allowed to delete this message");
+      return;
+    }
+
+    // 3️⃣ Find conversations that contain this message
+    const conversations = await ConversationModel.find({ messages: messageId });
+
+    // 4️⃣ Remove message from those conversations
+    await ConversationModel.updateMany(
+      { messages: messageId },
+      { $pull: { messages: messageId } }
+    );
+
+    // 5️⃣ Delete the message document
+    await MessageModel.findByIdAndDelete(messageId);
+
+    // 6️⃣ Notify just the users in those conversations
+    conversations.forEach((conv) => {
+      const senderId = conv.sender.toString();
+      const receiverId = conv.receiver.toString();
+
+      io.to(senderId).emit("message-deleted", messageId);
+      io.to(receiverId).emit("message-deleted", messageId);
+    });
+
+    console.log("Message deleted:", messageId);
+  } catch (err) {
+    console.error("Error deleting message:", err);
+  }
+});
+
 
     //sidebar
     socket.on('sidebar',async(currentUserId)=>{
