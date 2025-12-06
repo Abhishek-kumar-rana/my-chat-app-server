@@ -26,10 +26,10 @@ const io = new Server(server,{
 const onlineUser = new Set()
 
 io.on('connection',async(socket)=>{
-    console.log("connect User ", socket.id)
+    //.log("connect User ", socket.id)
 
     const token = socket.handshake.auth.token 
-    console.log(token);
+    //.log(token);
     
     let user = null
     
@@ -39,7 +39,7 @@ io.on('connection',async(socket)=>{
 
         // Check if authentication failed
         if (!user || user.logout) {
-            console.log("Authentication failed for socket:", socket.id)
+            //.log("Authentication failed for socket:", socket.id)
             socket.emit('auth-error', { message: user?.message || "Authentication failed" })
             socket.disconnect()
             return
@@ -54,7 +54,7 @@ io.on('connection',async(socket)=>{
 
         io.emit('onlineUser',Array.from(onlineUser))
     } catch (error) {
-        console.error("Error during socket connection:", error)
+        //.error("Error during socket connection:", error)
         socket.emit('auth-error', { message: "Authentication error" })
         socket.disconnect()
         return
@@ -67,7 +67,7 @@ io.on('connection',async(socket)=>{
         }
 
         try {
-            console.log('userId',userId)
+            //.log('userId',userId)
             const userDetails = await UserModel.findById(userId).select("-password")
             
             const payload = {
@@ -90,7 +90,7 @@ io.on('connection',async(socket)=>{
 
             socket.emit('message',getConversationMessage?.messages || [])
         } catch (error) {
-            console.error("Error in message-page:", error)
+            //.error("Error in message-page:", error)
             socket.emit('error', { message: "Failed to load messages" })
         }
     })
@@ -160,18 +160,18 @@ socket.on("delete-message", async ({ messageId }) => {
 
     if (!messageId || !socket.user._id) return;
 
-    console.log("Delete message request:", messageId, "by user", socket.user._id);
+    //.log("Delete message request:", messageId, "by user", socket.user._id);
 
     // 1️⃣ Find the message
     const msg = await MessageModel.findById(messageId);
     if (!msg) {
-      console.log("Message not found");
+      //.log("Message not found");
       return;
     }
 
     // 2️⃣ Allow only the sender to delete
     if (msg.msgByUserId.toString() !== socket.user._id.toString()) {
-      console.log("Not allowed to delete this message");
+      //.log("Not allowed to delete this message");
       return;
     }
 
@@ -196,16 +196,16 @@ socket.on("delete-message", async ({ messageId }) => {
       io.to(receiverId).emit("message-deleted", messageId);
     });
 
-    console.log("Message deleted:", messageId);
+    //.log("Message deleted:", messageId);
   } catch (err) {
-    console.error("Error deleting message:", err);
+    //.error("Error deleting message:", err);
   }
 });
 
 
     //sidebar
     socket.on('sidebar',async(currentUserId)=>{
-        console.log("current user",currentUserId)
+        //.log("current user",currentUserId)
 
         const conversation = await GetConversation(currentUserId)
 
@@ -241,7 +241,7 @@ socket.on("delete-message", async ({ messageId }) => {
             io.to(socket.user._id.toString()).emit('conversation',conversationSender)
             io.to(msgByUserId).emit('conversation',conversationReceiver)
         } catch (error) {
-            console.error("Error in seen handler:", error)
+            //.error("Error in seen handler:", error)
         }
     })
 
@@ -307,7 +307,7 @@ socket.on("add-reaction", async (data) => {
     io.to(senderId).emit("reaction-update", payload);
     io.to(receiverId).emit("reaction-update", payload);
   } catch (err) {
-    console.error("add-reaction error:", err);
+    //.error("add-reaction error:", err);
   }
 });
 
@@ -338,7 +338,7 @@ socket.on("add-reaction", async (data) => {
         if (socket.user && socket.user._id) {
             onlineUser.delete(socket.user._id.toString())
         }
-        console.log('disconnect user ',socket.id)
+        //.log('disconnect user ',socket.id)
     })
 })
 
