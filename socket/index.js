@@ -245,6 +245,94 @@ socket.on("delete-message", async ({ messageId }) => {
         }
     })
 
+    // on emojie on message input box 
+
+    // Listen for reactions
+socket.on("add-reaction", async (data) => {
+  try {
+    const { messageId, userId, emoji } = data;
+
+    if (!messageId || !userId || !emoji) return;
+
+    const message = await MessageModel.findById(messageId);
+    if (!message) return;
+
+    // Ensure reactions object exists
+    if (!message.reactions) {
+      message.reactions = {};
+    }
+
+    const userKey = String(userId);
+
+    if (!Array.isArray(message.reactions[userKey])) {
+      message.reactions[userKey] = [];
+    }
+
+    const list = message.reactions[userKey];
+    const index = list.indexOf(emoji);
+
+    if (index > -1) {
+      // remove emoji (toggle OFF)
+      list.splice(index, 1);
+    } else {
+      // add emoji (toggle ON)
+      list.push(emoji);
+    }
+
+    // Clean up empty arrays
+    if (message.reactions[userKey].length === 0) {
+      delete message.reactions[userKey];
+    }
+
+    // 🔴 IMPORTANT: let Mongoose know this nested Object changed
+    message.markModified("reactions");
+    await message.save();
+
+    // Find conversation that contains this message
+    const conversation = await ConversationModel
+      .findOne({ messages: message._id })
+      .select("sender receiver")
+      .lean();
+
+    if (!conversation) return;
+
+    const senderId = String(conversation.sender);
+    const receiverId = String(conversation.receiver);
+
+    const payload = {
+      messageId: message._id.toString(),
+      reactions: message.reactions,
+    };
+
+    io.to(senderId).emit("reaction-update", payload);
+    io.to(receiverId).emit("reaction-update", payload);
+  } catch (err) {
+    console.error("add-reaction error:", err);
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // for typing indicator
+    socket.on('typing',({ senderId,receiverId,isTyping })=>{
+        if (isTyping) {
+            socket.to(receiverId).emit('typing',{ senderId, isTyping : true })
+        } else {
+            socket.to(receiverId).emit('typing',{ senderId, isTyping : false })
+        }
+    })
+
     //disconnect
     socket.on('disconnect',()=>{
         if (socket.user && socket.user._id) {
