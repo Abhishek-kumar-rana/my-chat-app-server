@@ -30,38 +30,69 @@ io.on('connection',async(socket)=>{
 
     const token = socket.handshake.auth.token 
     console.log(token);
-    //current user details 
-    const user = await getUserDetailsFromToken(token)
+    
+    let user = null
+    
+    try {
+        //current user details 
+        user = await getUserDetailsFromToken(token)
 
-    //create a room
-    socket.join(user?._id.toString())
-    onlineUser.add(user?._id?.toString())
+        // Check if authentication failed
+        if (!user || user.logout) {
+            console.log("Authentication failed for socket:", socket.id)
+            socket.emit('auth-error', { message: user?.message || "Authentication failed" })
+            socket.disconnect()
+            return
+        }
 
-    io.emit('onlineUser',Array.from(onlineUser))
+        // Store user on socket for use in event handlers
+        socket.user = user
+
+        //create a room
+        socket.join(user._id.toString())
+        onlineUser.add(user._id.toString())
+
+        io.emit('onlineUser',Array.from(onlineUser))
+    } catch (error) {
+        console.error("Error during socket connection:", error)
+        socket.emit('auth-error', { message: "Authentication error" })
+        socket.disconnect()
+        return
+    }
 
     socket.on('message-page',async(userId)=>{
-        console.log('userId',userId)
-        const userDetails = await UserModel.findById(userId).select("-password")
-        
-        const payload = {
-            _id : userDetails?._id,
-            name : userDetails?.name,
-            email : userDetails?.email,
-            profile_pic : userDetails?.profile_pic,
-            online : onlineUser.has(userId)
+        if (!socket.user) {
+            socket.emit('auth-error', { message: "Not authenticated" })
+            return
         }
-        socket.emit('message-user',payload)
+
+        try {
+            console.log('userId',userId)
+            const userDetails = await UserModel.findById(userId).select("-password")
+            
+            const payload = {
+                _id : userDetails?._id,
+                name : userDetails?.name,
+                email : userDetails?.email,
+                profile_pic : userDetails?.profile_pic,
+                online : onlineUser.has(userId)
+            }
+            socket.emit('message-user',payload)
 
 
-         //get previous message
-         const getConversationMessage = await ConversationModel.findOne({
-            "$or" : [
-                { sender : user?._id, receiver : userId },
-                { sender : userId, receiver :  user?._id}
-            ]
-        }).populate('messages').sort({ updatedAt : -1 })
+             //get previous message
+             const getConversationMessage = await ConversationModel.findOne({
+                "$or" : [
+                    { sender : socket.user._id, receiver : userId },
+                    { sender : userId, receiver :  socket.user._id}
+                ]
+            }).populate('messages').sort({ updatedAt : -1 })
 
-        socket.emit('message',getConversationMessage?.messages || [])
+            socket.emit('message',getConversationMessage?.messages || [])
+        } catch (error) {
+            console.error("Error in message-page:", error)
+            socket.emit('error', { message: "Failed to load messages" })
+        }
     })
 
 
@@ -122,9 +153,14 @@ io.on('connection',async(socket)=>{
     // delete message
 socket.on("delete-message", async ({ messageId }) => {
   try {
-    if (!messageId || !user?._id) return;
+    if (!socket.user) {
+      socket.emit('auth-error', { message: "Not authenticated" })
+      return
+    }
 
-    console.log("Delete message request:", messageId, "by user", user._id);
+    if (!messageId || !socket.user._id) return;
+
+    console.log("Delete message request:", messageId, "by user", socket.user._id);
 
     // 1️⃣ Find the message
     const msg = await MessageModel.findById(messageId);
@@ -134,7 +170,7 @@ socket.on("delete-message", async ({ messageId }) => {
     }
 
     // 2️⃣ Allow only the sender to delete
-    if (msg.msgByUserId.toString() !== user._id.toString()) {
+    if (msg.msgByUserId.toString() !== socket.user._id.toString()) {
       console.log("Not allowed to delete this message");
       return;
     }
@@ -178,32 +214,42 @@ socket.on("delete-message", async ({ messageId }) => {
     })
 
     socket.on('seen',async(msgByUserId)=>{
-        
-        let conversation = await ConversationModel.findOne({
-            "$or" : [
-                { sender : user?._id, receiver : msgByUserId },
-                { sender : msgByUserId, receiver :  user?._id}
-            ]
-        })
+        if (!socket.user) {
+            socket.emit('auth-error', { message: "Not authenticated" })
+            return
+        }
 
-        const conversationMessageId = conversation?.messages || []
+        try {
+            let conversation = await ConversationModel.findOne({
+                "$or" : [
+                    { sender : socket.user._id, receiver : msgByUserId },
+                    { sender : msgByUserId, receiver :  socket.user._id}
+                ]
+            })
 
-        const updateMessages  = await MessageModel.updateMany(
-            { _id : { "$in" : conversationMessageId }, msgByUserId : msgByUserId },
-            { "$set" : { seen : true }}
-        )
+            const conversationMessageId = conversation?.messages || []
 
-        //send conversation
-        const conversationSender = await GetConversation(user?._id?.toString())
-        const conversationReceiver = await GetConversation(msgByUserId)
+            const updateMessages  = await MessageModel.updateMany(
+                { _id : { "$in" : conversationMessageId }, msgByUserId : msgByUserId },
+                { "$set" : { seen : true }}
+            )
 
-        io.to(user?._id?.toString()).emit('conversation',conversationSender)
-        io.to(msgByUserId).emit('conversation',conversationReceiver)
+            //send conversation
+            const conversationSender = await GetConversation(socket.user._id.toString())
+            const conversationReceiver = await GetConversation(msgByUserId)
+
+            io.to(socket.user._id.toString()).emit('conversation',conversationSender)
+            io.to(msgByUserId).emit('conversation',conversationReceiver)
+        } catch (error) {
+            console.error("Error in seen handler:", error)
+        }
     })
 
     //disconnect
     socket.on('disconnect',()=>{
-        onlineUser.delete(user?._id?.toString())
+        if (socket.user && socket.user._id) {
+            onlineUser.delete(socket.user._id.toString())
+        }
         console.log('disconnect user ',socket.id)
     })
 })

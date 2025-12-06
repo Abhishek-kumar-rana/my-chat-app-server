@@ -9,7 +9,7 @@ async function UpdateUserDetails(request,response){
 
         const { name, profile_pic } = request.body
 
-        const updateUser = await UserModel.updateOne({ _id : user._id },{
+         const updateUser = await UserModel.updateOne({ _id : user._id },{
             name,
             profile_pic
         })

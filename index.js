@@ -11,7 +11,7 @@ dotenv.config();
 
 // const app = express();  
 app.use(cors({
-    origin: "*",
+    origin: process.env.FRONTEND_URL,
     credentials: true,         
 })); 
     
@@ -25,10 +25,10 @@ app.get('/', (req, res) => {
     // res.send('API is running... on');
     res.json({ message: 'API is running...on' });
 });
-
+ 
 app.use('/api',router);
-
-connectDB() 
+ 
+connectDB()  
     .then(() => {
         console.log('MongoDB connected successfully');
         server.listen(PORT, () => {
