@@ -25,8 +25,17 @@ app.get('/', (req, res) => {
     // res.send('API is running... on');
     res.json({ message: 'API is running...on' });
 });
+app.get("/health", (req, res) => {
+    // console.log("Health check endpoint hit");
+  res.status(200).json({
+    status: "ok",
+    message: "Server is awake"
+  });
+});  
  
 app.use('/api',router);
+
+
  
 connectDB()  
     .then(() => {
